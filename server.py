@@ -4,7 +4,7 @@ from config import Token_for_Bot
 
 
 statistics = {'name' : 'None', 'country' : 'None', 'town' : 'None', 'count' : 0}
-reply_keyboard = [["/login", "/play", "/profile"], ["/help", "/quit"]]
+reply_keyboard = [["/login", "/help", "/profile"], ["/play"]]
 
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 markup2 = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
@@ -16,9 +16,11 @@ async def start(update, context):
 
 
 async def login(update, context):
-    await update.message.reply_text('Введите свой никнейм: ')
-    return 1
-    
+    if statistics['name'] == 'None' and statistics['country'] == 'None' and statistics['town'] == 'None':
+        await update.message.reply_text('Введите свой никнейм: ')
+        return 1
+    else:
+        await update.message.reply_text('Вы уже зарегестрированы')
     
 async def first_answer(update, context):
     statistics['name'] = update.message.text
@@ -41,18 +43,25 @@ async def three_answer(update, context):
 async def profile(update, context):
     if "None" in statistics.values():
         await update.message.reply_text('Закончите регистрацию: ')
-        
-    
-async def menu(update, context):
-    await update.message.reply_text(reply_markup=markup)
+    else:
+        await update.message.reply_text(f'''Ваши никнейм:  _{statistics['name']}_ 
+Страна:  _{statistics['country']}_
+Город:  _{statistics['town']}_''')
         
 
-async def remove_menu(update, context):
-    await update.message.reply_text('Меню убрано', reply_markup=markup2)
+async def help(update, context):
+    await update.message.reply_text(f'''/login - команда, для регистрации
+/profile - команда, чтобы увидеть данные вашего профиля
+/play - команда, для запуска игры     
+/start - команда, для запуска бота
+''')
 
 
 async def play(update, context):
-    await update.message.reply_text('Начинаем игру')
+    if "None" in statistics.values():
+        await update.message.reply_text('Закончите регистрацию: ')
+    else:
+        await update.message.reply_text('Начинаем игру')
     
 
 async def leave(update, context):
@@ -76,19 +85,17 @@ def main():
         fallbacks=[CommandHandler("stop", leave)]
     )
     
+    help_handler = CommandHandler('help', help)
     start_handler = CommandHandler('start', start)
     play_handler = CommandHandler('play', play)
-    remove_menu_handler = CommandHandler('hidemenu', remove_menu)
     profile_handler = CommandHandler('profile', profile)
-    menu_handler = CommandHandler('menu', menu)
     text_handler = MessageHandler(filters.TEXT, func)
     
     aplication.add_handler(start_handler)
     aplication.add_handler(conv_handler)
+    aplication.add_handler(help_handler)
     aplication.add_handler(play_handler)
-    aplication.add_handler(remove_menu_handler)
     aplication.add_handler(profile_handler)
-    aplication.add_handler(menu_handler)
     aplication.add_handler(text_handler)
     
     aplication.run_polling()
