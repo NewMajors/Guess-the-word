@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 cursor.execute('''SELECT * FROM users''')
 
 statistics = {'id': 0, 'name': 'None', 'country': 'None', 'town': 'None', 'count': 0}
-reply_keyboard = [["/login", "/help", "/profile"], ["/play"]]
+reply_keyboard = [["/login", "/help", "/profile"], ["/play"], ['/deleteProfile']]
 
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 markup2 = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
@@ -71,7 +71,7 @@ VALUES (?, ?, ?, ?, ?)
 
 async def profile(update, context):
     if "None" in statistics.values():
-        await update.message.reply_text('Закончите регистрацию!!!')
+        await update.message.reply_text('Зарегестрируйтесь!!!')
         return
 
     cursor.execute('SELECT name, country, town, count FROM users WHERE id = ?', (statistics['id'],))
@@ -89,20 +89,34 @@ async def profile(update, context):
 
 
 async def delete_profile(update, context):
-    pass
-
+    if 'None' in statistics.values():
+        await update.message.reply_text('Для начала зарегестрируйтесь!')
+    else:
+        cursor.execute('DELETE FROM users WHERE id = ?', (statistics['id'],))
+        connection.commit()
+        
+        statistics['id'] = 0
+        statistics['name'] = 'None'
+        statistics['country'] = 'None'
+        statistics['town'] = 'None'
+        statistics['count'] = 0
+        
+        await update.message.reply_text('Ваш профиль был удалён. Зарегестрируйтесь заново.\nВведите свой никнейм:')
+        return 1
+    
 
 async def help(update, context):
     await update.message.reply_text(f'''/login - команда, для регистрации
 /profile - команда, чтобы увидеть данные вашего профиля
 /play - команда, для запуска игры     
 /start - команда, для запуска бота
+/deleteProfile - команда, для удаления данных о профиле
 ''')
 
 
 async def play(update, context):
     if "None" in statistics.values():
-        await update.message.reply_text('Закончите регистрацию!!!')
+        await update.message.reply_text('Зарегестрируйтесь!!!')
     else:
         await update.message.reply_text('Начинаем игру')
     
@@ -128,8 +142,17 @@ def main():
         fallbacks=[CommandHandler("stop", leave)]
     )
     
+    delete_profile_handler = ConversationHandler(
+        entry_points=[CommandHandler('deleteProfile', delete_profile)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_answer)],
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, second_answer)],
+            3: [MessageHandler(filters.TEXT & ~filters.COMMAND, three_answer)],
+        },
+        fallbacks=[CommandHandler("stop", leave)]
+    )
+    
     help_handler = CommandHandler('help', help)
-    delete_profile_handler = CommandHandler('DeleteProfile', delete_profile)
     start_handler = CommandHandler('start', start)
     play_handler = CommandHandler('play', play)
     profile_handler = CommandHandler('profile', profile)
