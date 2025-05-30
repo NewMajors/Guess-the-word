@@ -10,7 +10,7 @@ cursor = connection.cursor()
 
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     country TEXT NOT NULL,
     town TEXT NOT NULL, 
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 cursor.execute('''SELECT * FROM users''')
 
-statistics = {'name' : 'None', 'country' : 'None', 'town' : 'None', 'count' : 0}
+statistics = {'id': 0, 'name': 'None', 'country': 'None', 'town': 'None', 'count': 0}
 reply_keyboard = [["/login", "/help", "/profile"], ["/play"]]
 
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
@@ -32,12 +32,15 @@ async def start(update, context):
 
 
 async def login(update, context):
-    if statistics['name'] == 'None' and statistics['country'] == 'None' and statistics['town'] == 'None':
+    statistics['id'] = update.message.from_user.id 
+    
+    if "None" in statistics.values():
         await update.message.reply_text('Введите свой никнейм: ')
         return 1
     else:
         await update.message.reply_text('Вы уже зарегестрированы!')
     
+
 async def first_answer(update, context):
     statistics['name'] = update.message.text
     await update.message.reply_text('В какой стране вы проживаете: ')
@@ -55,9 +58,9 @@ async def three_answer(update, context):
     statistics['count'] = 0
     
     cursor.execute('''
-INSERT INTO users (name, country, town, count) 
-VALUES (?, ?, ?, ?)
-''', (statistics['name'], statistics['country'], statistics['town'], statistics['count']))
+INSERT INTO users (id, name, country, town, count) 
+VALUES (?, ?, ?, ?, ?)
+''', (statistics['id'], statistics['name'], statistics['country'], statistics['town'], statistics['count']))
     
     connection.commit()
     
@@ -71,7 +74,7 @@ async def profile(update, context):
         await update.message.reply_text('Закончите регистрацию!!!')
         return
 
-    cursor.execute('SELECT name, country, town, count FROM users WHERE name = ?', (statistics['name'],))
+    cursor.execute('SELECT name, country, town, count FROM users WHERE id = ?', (statistics['id'],))
     result = cursor.fetchone()
 
     if result:
@@ -84,7 +87,10 @@ async def profile(update, context):
     else:
         await update.message.reply_text('Профиль не найден. Зарегистрируйтесь снова.')
 
-        
+
+async def delete_profile(update, context):
+    pass
+
 
 async def help(update, context):
     await update.message.reply_text(f'''/login - команда, для регистрации
@@ -106,7 +112,7 @@ async def leave(update, context):
 
 
 async def func(update, context):
-    await update.message.reply_text(update.message.text)
+    pass
     
 
 def main():
@@ -123,9 +129,11 @@ def main():
     )
     
     help_handler = CommandHandler('help', help)
+    delete_profile_handler = CommandHandler('DeleteProfile', delete_profile)
     start_handler = CommandHandler('start', start)
     play_handler = CommandHandler('play', play)
     profile_handler = CommandHandler('profile', profile)
+    login_handler = CommandHandler('login', login)
     text_handler = MessageHandler(filters.TEXT, func)
     
     aplication.add_handler(start_handler)
@@ -133,6 +141,8 @@ def main():
     aplication.add_handler(help_handler)
     aplication.add_handler(play_handler)
     aplication.add_handler(profile_handler)
+    aplication.add_handler(login_handler)
+    aplication.add_handler(delete_profile_handler)
     aplication.add_handler(text_handler)
     
     aplication.run_polling()
