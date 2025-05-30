@@ -1,8 +1,9 @@
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler
 from telegram import ReplyKeyboardMarkup
-from config import Token_for_Bot
+from config import Token_for_Bot, url_translate_to_russian, url_get_translated_word
 
 import sqlite3
+import requests
 
 connection = sqlite3.connect('DB/DataBase.sqlite')
 
@@ -24,6 +25,34 @@ reply_keyboard = [["/login", "/help", "/profile"], ["/play"], ['/deleteProfile']
 
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 markup2 = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+
+
+def translate_to_russian(word):
+    url = url_translate_to_russian
+    params = {
+        "q": word,
+        "langpair": "en|ru"
+    }
+    try:
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return data["responseData"]["translatedText"]
+        else:
+            return "(ошибка API)"
+    except requests.exceptions.RequestException:
+        return "(ошибка подключения)"
+
+    
+def get_translated_word():
+    url = url_get_translated_word
+    response = requests.get(url)
+    if response.status_code == 200:
+        word = response.json()[0]
+        translated = translate_to_russian(word)
+        return word, translated
+    else:
+        return None, None
 
 
 async def start(update, context):
@@ -56,16 +85,21 @@ async def second_answer(update, context):
 async def three_answer(update, context):
     statistics['town'] = update.message.text 
     statistics['count'] = 0
-    
+
     cursor.execute('''
-INSERT INTO users (id, name, country, town, count) 
-VALUES (?, ?, ?, ?, ?)
-''', (statistics['id'], statistics['name'], statistics['country'], statistics['town'], statistics['count']))
+    INSERT OR REPLACE INTO users (id, name, country, town, count) 
+    VALUES (?, ?, ?, ?, ?)
+    ''', (
+        statistics['id'],
+        statistics['name'],
+        statistics['country'],
+        statistics['town'],
+        statistics['count']
+    ))
     
     connection.commit()
     
     await update.message.reply_text('Данные сохранены!')
-    
     return ConversationHandler.END
 
 
@@ -116,9 +150,14 @@ async def help(update, context):
 
 async def play(update, context):
     if "None" in statistics.values():
-        await update.message.reply_text('Зарегестрируйтесь!!!')
+        await update.message.reply_text('Сначала зарегистрируйтесь через /login.')
     else:
-        await update.message.reply_text('Начинаем игру')
+        eng, rus = get_translated_word()
+        if eng and rus:
+            await update.message.reply_text(f"Английское слово: **{eng}**\nПеревод: **{rus}**")
+        else:
+            await update.message.reply_text("Не удалось получить слово. Попробуйте позже.")
+
     
 
 async def leave(update, context):
