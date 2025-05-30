@@ -55,7 +55,7 @@ async def get_translated_word():
                 if translated:
                     translated = translated.strip()
                     
-                    if (" " not in translated and len(translated) <= 15 and 
+                    if (" " not in translated and 7 <= len(translated) <= 15 and 
                         re.fullmatch(r"[А-Яа-яЁё\-]+", translated)):
                         return word, translated
             return None, None
@@ -64,13 +64,24 @@ async def get_translated_word():
 
 
 async def start(update, context):
-    if "None" in statistics.values():
+    user_id = update.message.from_user.id
+    cursor.execute('SELECT id, name, country, town, count FROM users WHERE id = ?', (user_id,))
+    result = cursor.fetchone()
+
+    if result:
+        statistics['id'] = result[0]
+        statistics['name'] = result[1]
+        statistics['country'] = result[2]
+        statistics['town'] = result[3]
+        statistics['count'] = result[4]
+
+        await update.message.reply_text(f'<!! ПРИВЕТСТВУЮ, {statistics["name"]} !!>', reply_markup=markup)
+    else:
         await update.message.reply_text(
             f'Добро пожаловать {update.message.from_user.first_name}! Зарегистрируйтесь командой: /login',
             reply_markup=markup2
         )
-    else:
-        await update.message.reply_text('<!! ПРИВЕТСТВУЮ !!>')
+
 
 
 async def login(update, context):
