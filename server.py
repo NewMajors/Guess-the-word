@@ -2,6 +2,22 @@ from telegram.ext import Application, MessageHandler, filters, CommandHandler, C
 from telegram import ReplyKeyboardMarkup
 from config import Token_for_Bot
 
+import sqlite3
+
+connection = sqlite3.connect('DB/DataBase.sqlite')
+
+cursor = connection.cursor()
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    country TEXT NOT NULL,
+    town TEXT NOT NULL, 
+    count INTEGER NOT NULL)
+''')
+
+cursor.execute('''SELECT * FROM users''')
 
 statistics = {'name' : 'None', 'country' : 'None', 'town' : 'None', 'count' : 0}
 reply_keyboard = [["/login", "/help", "/profile"], ["/play"]]
@@ -20,7 +36,7 @@ async def login(update, context):
         await update.message.reply_text('Введите свой никнейм: ')
         return 1
     else:
-        await update.message.reply_text('Вы уже зарегестрированы')
+        await update.message.reply_text('Вы уже зарегестрированы!')
     
 async def first_answer(update, context):
     statistics['name'] = update.message.text
@@ -36,17 +52,38 @@ async def second_answer(update, context):
 
 async def three_answer(update, context):
     statistics['town'] = update.message.text 
+    statistics['count'] = 0
+    
+    cursor.execute('''
+INSERT INTO users (name, country, town, count) 
+VALUES (?, ?, ?, ?)
+''', (statistics['name'], statistics['country'], statistics['town'], statistics['count']))
+    
+    connection.commit()
+    
     await update.message.reply_text('Данные сохранены!')
+    
     return ConversationHandler.END
 
 
 async def profile(update, context):
     if "None" in statistics.values():
-        await update.message.reply_text('Закончите регистрацию: ')
+        await update.message.reply_text('Закончите регистрацию!!!')
+        return
+
+    cursor.execute('SELECT name, country, town, count FROM users WHERE name = ?', (statistics['name'],))
+    result = cursor.fetchone()
+
+    if result:
+        name, country, town, count = result
+        await update.message.reply_text(f'''Ваш профиль:
+Никнейм: _{name}_
+Страна: _{country}_
+Город: _{town}_
+Слов угадано: _{count}_''')
     else:
-        await update.message.reply_text(f'''Ваши никнейм:  _{statistics['name']}_ 
-Страна:  _{statistics['country']}_
-Город:  _{statistics['town']}_''')
+        await update.message.reply_text('Профиль не найден. Зарегистрируйтесь снова.')
+
         
 
 async def help(update, context):
@@ -59,7 +96,7 @@ async def help(update, context):
 
 async def play(update, context):
     if "None" in statistics.values():
-        await update.message.reply_text('Закончите регистрацию: ')
+        await update.message.reply_text('Закончите регистрацию!!!')
     else:
         await update.message.reply_text('Начинаем игру')
     
@@ -99,6 +136,7 @@ def main():
     aplication.add_handler(text_handler)
     
     aplication.run_polling()
+    connection.close()
     
     
 if __name__ == "__main__":
