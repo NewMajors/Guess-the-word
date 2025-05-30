@@ -6,7 +6,7 @@ import sqlite3
 import requests
 import re
 
-CHOOSE, GUESS_WORD = range(2)
+CHOOSE, GUESS_WORD, NUMERIC_INPUT_MODE = range(3)
 
 connection = sqlite3.connect('DB/DataBase.sqlite')
 cursor = connection.cursor()
@@ -180,8 +180,8 @@ async def choose_mode(update, context):
         await update.message.reply_text('Введите предполагаемое слово:')
         return GUESS_WORD
     elif choice == '2':
-        await update.message.reply_text('Режим с буквами пока не реализован.')
-        return ConversationHandler.END
+        await update.message.reply_text('Введите букву: ')
+        return NUMERIC_INPUT_MODE
     else:
         await update.message.reply_text('Введите только 1 или 2.')
         return CHOOSE
@@ -199,6 +199,52 @@ async def guess_word(update, context):
     else:
         await update.message.reply_text(f'Неверно. Загаданное слово было: {correct}')
     return ConversationHandler.END
+
+
+async def numeric_input_mode(update, context):
+    letter = update.message.text.strip().lower()
+    correct = context.user_data.get('answer', '').lower()
+    
+    guessed_letters = context.user_data.setdefault('guessed_letters', [])
+    attempts_left = context.user_data.setdefault('attempts_left', 6)
+
+    if len(letter) != 1 or not letter.isalpha():
+        await update.message.reply_text("Введите только одну букву.")
+        return NUMERIC_INPUT_MODE
+
+    if letter in guessed_letters:
+        await update.message.reply_text("Вы уже называли эту букву.")
+        return NUMERIC_INPUT_MODE
+
+    guessed_letters.append(letter)
+
+    if letter in correct:
+        context.user_data['attempts_left'] -= 1
+        await update.message.reply_text(
+            f"Такая буква есть в слове. Осталось попыток: {context.user_data['attempts_left']}"
+        )
+    else:
+        context.user_data['attempts_left'] -= 1
+        await update.message.reply_text(
+            f"Такой буквы нет. Осталось попыток: {context.user_data['attempts_left']}"
+        )
+
+    display = " ".join([c if c in guessed_letters else "_" for c in correct])
+    await update.message.reply_text(f"Слово: {display}")
+
+    if all(c in guessed_letters for c in correct):
+        await update.message.reply_text(f"Поздравляю! Вы угадали слово: {correct}")
+        statistics['count'] += 1
+        cursor.execute('UPDATE users SET count = ? WHERE id = ?', (statistics['count'], statistics['id']))
+        connection.commit()
+        return ConversationHandler.END
+
+    if context.user_data['attempts_left'] <= 0:
+        await update.message.reply_text("Попытки закончились. Теперь попробуй угадать слово целиком:")
+        return GUESS_WORD
+
+    return NUMERIC_INPUT_MODE
+
 
 async def leave(update, context):
     return ConversationHandler.END
@@ -232,6 +278,7 @@ def main():
         states={
             CHOOSE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_mode)],
             GUESS_WORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, guess_word)],
+            NUMERIC_INPUT_MODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, numeric_input_mode)]
         },
         fallbacks=[CommandHandler("stop", leave)]
     )
