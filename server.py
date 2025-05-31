@@ -21,7 +21,11 @@ CREATE TABLE IF NOT EXISTS users (
 ''')
 
 statistics = {'id': 0, 'name': 'None', 'country': 'None', 'town': 'None', 'count': 0}
-reply_keyboard = [["/login", "/help", "/profile"], ["/play"], ['/deleteProfile']]
+reply_keyboard = [
+    ["/login", "/help", "/profile"], 
+    ["/play"], 
+    ['/editprofile', '/deleteProfile']
+]
 
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 markup2 = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
@@ -139,6 +143,89 @@ async def profile(update, context):
 Слов угадано: _{count}_''')
     else:
         await update.message.reply_text('Профиль не найден.')
+        
+        
+async def edit_profile(update, context):
+    await update.message.reply_text('Что вы хотите изменить: ')
+    return 1
+    
+
+async def choose_edit(update, context):
+    stroka = update.message.text 
+
+    if stroka == 'name':
+        await update.message.reply_text('Введите новый никнейм: ')
+        return 2
+    
+    if stroka == 'country':
+        await update.message.reply_text('Введите новую страну: ')
+        return 3
+    
+    if stroka == 'town':
+        await update.message.repy_text('Введите новый город: ')
+        return 4
+
+    if stroka not in ['name', 'contry', 'town']:
+        await update.message.repy_text('Такой характеристики в профиле нету.\nВведите другую: ')
+        return 1
+
+async def edit_name(update, context):
+    name = update.message.text
+    user_id = update.message.from_user.id
+    cursor.execute('SELECT name FROM users WHERE id = ?', (user_id,))
+    result = cursor.fetchone()
+    
+    
+    if result == name:
+        await update.message.reply_text('Вы ввели ваш текущий никнейм. Введите другой: ')
+        return 2
+    else:
+        statistics['name'] = name
+        cursor.execute('''
+        UPDATE users SET name = ? WHERE id = ?
+        ''', (statistics['name'], user_id
+        ))
+        connection.commit()
+        
+        await update.message.reply_text('Данные обновлены.')
+
+async def edit_country(update, context):
+    country = update.message.text
+    user_id = update.message.from_user.id
+    cursor.execute('SELECT country FROM users WHERE id = ?', (user_id,))
+    result = cursor.fetchone()
+    
+    if result == country:
+        await update.message.reply_text('Вы ввели вашу прежнюю страну. Введите другую: ')
+        return 3
+    else:
+        statistics['country'] = country
+        cursor.execute('''
+        UPDATE users SET country = ? WHERE id = ?
+        ''', (statistics['country'], user_id
+        ))
+        connection.commit()
+        
+        await update.message.reply_text('Данные обновлены.')
+
+async def edit_town(update, context):
+    town = update.message.text
+    user_id = update.message.from_user.id
+    cursor.execute('SELECT town FROM users WHERE id = ?', (user_id,))
+    result = cursor.fetchone()
+    
+    if result == town:
+        await update.message.reply_text('Вы ввели ваш прежний город. Введите другой: ')
+        return 4
+    else:
+        statistics['town'] = town
+        cursor.execute('''
+        UPDATE users SET town = ? WHERE id = ?
+        ''', (statistics['town'], user_id
+        ))
+        connection.commit()
+        
+        await update.message.reply_text('Данные обновлены.')
 
 
 async def delete_profile(update, context):
@@ -274,6 +361,17 @@ def main():
         fallbacks=[CommandHandler("stop", leave)]
     )
 
+    edit_profile_handler = ConversationHandler(
+        entry_points=[CommandHandler('editprofile', edit_profile)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_edit)],
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_name)],
+            3: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_country)],
+            4: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_town)]
+        },
+        fallbacks=[CommandHandler('stop', leave)]
+    )
+    
     delete_profile_handler = ConversationHandler(
         entry_points=[CommandHandler('deleteProfile', delete_profile)],
         states={
@@ -296,10 +394,12 @@ def main():
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(conv_handler)
+    application.add_handler(edit_profile_handler)
     application.add_handler(delete_profile_handler)
     application.add_handler(game_handler)
     application.add_handler(CommandHandler('help', help))
     application.add_handler(CommandHandler('profile', profile))
+    application.add_handler(CommandHandler('editprofil', edit_profile))
 
     application.run_polling()
     connection.close()
